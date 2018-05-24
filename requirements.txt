@@ -1,0 +1,11 @@
+Django==1.11
+djangorestframework==3.8.2
+fandango>=13.7.0
+MySQL-python==1.2.5
+numpy==1.14.3
+panic>=6.5.0
+pytango>=9.2.2
+PyTangoArchiving>=7.9.2
+pytz==2018.4
+six==1.11.0
+taurus==4.3.1
