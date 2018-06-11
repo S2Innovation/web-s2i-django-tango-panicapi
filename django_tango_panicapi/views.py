@@ -16,4 +16,12 @@ class AlarmViewset(viewsets.ReadOnlyModelViewSet):
     queryset = AlarmModel.objects.updated()
     serializer_class = AlarmSerializer
     filter_backends = (django_filters.rest_framework.DjangoFilterBackend,)
-    filter_fields = ('tag', 'description', 'receivers', 'is_active', 'is_disabled')
+    filter_fields = {
+        'tag': ['exact', 'icontains', 'contains', ],
+        'description': ['exact', 'icontains', 'contains', ],
+        'receivers': ['exact', 'icontains', 'contains', ],
+        'is_active': ['exact'],
+        'is_disabled': ['exact'],
+        'severity': ['exact', 'icontains', 'contains', 'in', ],
+        'state': ['exact', 'icontains', 'contains', 'in', ],
+    }
