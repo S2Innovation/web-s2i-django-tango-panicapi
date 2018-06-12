@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 from django.db import models
 from django.db import OperationalError
 from panic import alarmapi
+from PyTangoArchiving import snap
 from datetime import datetime, timedelta
 import logging
 
@@ -32,7 +33,8 @@ alarms = alarmapi.api()
 
 
 class AlarmsSettings(models.Model):
-    last_alarms_update = models.DateTimeField()
+    last_alarms_update = models.DateTimeField(auto_now=True)
+    last_history_update = models.DateTimeField(auto_now=True)
     update_period = models.DurationField()
 
 
@@ -52,6 +54,7 @@ class AlarmQueryset(models.QuerySet):
                 # set fields
                 panic_alarm = alarms[alarm_tag]
                 assert isinstance(panic_alarm, Alarm)
+                alarm.tag = alarm_tag
                 alarm.severity = panic_alarm.get_priority()
                 alarm.state = panic_alarm.get_state()
                 alarm.description = panic_alarm.description
@@ -95,6 +98,72 @@ class AlarmModel(models.Model):
     is_active = models.BooleanField(default=False, verbose_name="Active")
     activation_time = models.DateTimeField(blank=True, verbose_name="Activation time", null=True)
 
+# check if SNAP is available
+try:
+    db = alarmapi._TANGO #fandango.get_database()
+    assert list(db.get_device_exported_for_class('SnapManager'))
+    snap_api = snap.SnapAPI()
+except Exception, e:
+    logging.warning('PyTangoArchiving.Snaps not available: '
+                    'History synchronization is disabld: \n %s \n' % e.message)
+    snap_api = None
+
+
+class AlarmHistoryQueryset(models.QuerySet):
+    """Queryset to manage alarm history SNAP database."""
+
+    def updated(self):
+        """Returns a queryset after database synchronization"""
+
+        if snap_api is None:
+            return self
+
+        try:
+            # iterate through defined alarms and do update
+            for alarm in AlarmModel.objects.all():
+
+                # find SNAP context for alarm
+                alarm_ctx = snap_api.get_context(name=alarm.tag)
+
+                if alarm_ctx is not None:
+                    # check timestamp of the latest synchronized snapshot
+                    last_update_time = alarm.history.latest('date')
+                    # retrieve new snapshots from the database
+                    snaps = alarm_ctx.db.get_context_snapshots(alarm_ctx.id, dates=(last_update_time, datetime.now()))
+
+                    # iterate through new snapshots and create objects
+                    for snapshot in snaps:
+
+                        # find object in a database
+                        alarm_history, is_created = AlarmHistoryModel.objects.get_or_create(alarm=alarm,
+                                                                                            date=snapshot[1],
+                                                                                            comment=snapshot[2])
+                        assert isinstance(alarm_history, AlarmHistoryModel)
+
+                        # set fields
+                        alarm_history.alarm = alarm
+                        alarm_history.date = snapshot[1]
+                        alarm_history.comment = snapshot[2]
+
+                        # save to database
+                        alarm.save()
+        except OperationalError as oe:
+            logger.warning('There is an operational error: %s \n'
+                           'If it is before any migration it is normal for .updated() method '
+                           'tries to use a table which is not yet created.' % str(oe))
+
+        return self
+
+
+class AlarmHistoryModel(models.Model):
+
+    # set custom manager based on custom queryset
+    objects = AlarmHistoryQueryset.as_manager()
+
+    # fields
+    alarm = models.ForeignKey(AlarmModel, related_name='history')
+    date = models.DateTimeField()
+    comment = models.TextField()
 
 
 

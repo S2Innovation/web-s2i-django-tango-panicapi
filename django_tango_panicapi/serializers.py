@@ -19,3 +19,13 @@ class AlarmSerializer(serializers.ModelSerializer):
             'is_disabled',
             'activation_time'
         )
+
+class AlarmHistorySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = AlarmHistoryModel
+        fields = (
+            'id',
+            'date',
+            'comment',
+        )

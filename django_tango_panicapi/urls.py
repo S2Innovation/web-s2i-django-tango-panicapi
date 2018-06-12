@@ -3,9 +3,12 @@ from rest_framework.routers import DefaultRouter
 
 from . import views
 
-# create router
+
+# create routers
 panicapi_router = DefaultRouter()
 panicapi_router.register(r'alarms', views.AlarmViewset)
+panicapi_router.register(r'history', views.AlarmHistoryViewset)
+
 
 urlpatterns = [
     url(r'^', include(panicapi_router.urls)),
