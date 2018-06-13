@@ -84,7 +84,10 @@ class AlarmQueryset(models.QuerySet):
                 alarm.description = panic_alarm.description
                 alarm.formula = panic_alarm.get_condition()
                 alarm.receivers = panic_alarm.get_annunciators()
-                alarm.wiki_link = panic_alarm.get_wiki_link()
+                try:
+                    alarm.wiki_link = panic_alarm.get_wiki_link()
+                except AttributeError:
+                    alarm.wiki_link = ''
                 alarm.is_disabled = panic_alarm.disabled
                 alarm.is_active = panic_alarm.is_active()
                 if panic_alarm.time != 0:
