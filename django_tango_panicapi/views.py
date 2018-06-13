@@ -4,6 +4,8 @@ from __future__ import unicode_literals
 from django.shortcuts import render
 import django_filters.rest_framework
 from rest_framework import viewsets
+from rest_framework.pagination import PageNumberPagination
+
 from models import AlarmModel, AlarmHistoryModel
 from serializers import AlarmSerializer, AlarmHistorySerializer
 
@@ -14,9 +16,15 @@ def index(request):
     pass
 
 
+class AlarmsPaginator(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = page_size
+    max_page_size = 200
+
 class AlarmViewset(viewsets.ReadOnlyModelViewSet):
     queryset = AlarmModel.objects.updated()
     serializer_class = AlarmSerializer
+    pagination_class = AlarmsPaginator
     filter_backends = (django_filters.rest_framework.DjangoFilterBackend,)
     filter_fields = {
         'tag': ['exact', 'icontains', 'contains', ],
@@ -34,6 +42,8 @@ class AlarmHistoryViewset(viewsets.ReadOnlyModelViewSet):
     queryset = AlarmHistoryModel.objects.updated().order_by('-date')
 
     serializer_class = AlarmHistorySerializer
+
+    pagination_class = AlarmsPaginator
 
 
     filter_backends = (django_filters.rest_framework.DjangoFilterBackend,)
