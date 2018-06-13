@@ -36,11 +36,11 @@ alarms = alarmapi.api()
 class AlarmsApiSettingsModel(models.Model):
     """Model to keep settings for the application"""
     last_alarms_update = models.DateTimeField(
-        default=datetime.fromtimestamp(0),
+        default=datetime.fromtimestamp(0, timezone.get_current_timezone()),
         verbose_name='Last alarms update',
     )
     last_history_update = models.DateTimeField(
-        default=datetime.fromtimestamp(0),
+        default=datetime.fromtimestamp(0,timezone.get_current_timezone()),
         verbose_name='Last history update',
     )
     update_period = models.DurationField(
@@ -61,8 +61,8 @@ class AlarmQueryset(models.QuerySet):
                 api_settings = AlarmsApiSettingsModel.objects.last()
             else:
                 api_settings = AlarmsApiSettingsModel(
-                    last_alarms_update=datetime.fromtimestamp(0),
-                    last_history_update=datetime.fromtimestamp(0),
+                    last_alarms_update=datetime.fromtimestamp(0, timezone.get_current_timezone()),
+                    last_history_update=datetime.fromtimestamp(0, timezone.get_current_timezone()),
                     update_period=timedelta(seconds=5)
                 )
 
@@ -88,7 +88,7 @@ class AlarmQueryset(models.QuerySet):
                 alarm.is_disabled = panic_alarm.disabled
                 alarm.is_active = panic_alarm.is_active()
                 if panic_alarm.time != 0:
-                    alarm.activation_time = datetime.fromtimestamp(panic_alarm.time)
+                    alarm.activation_time = datetime.fromtimestamp(panic_alarm.time, timezone.get_current_timezone())
                 else:
                     alarm.activation_time = None
 
@@ -154,8 +154,8 @@ class AlarmHistoryQueryset(models.QuerySet):
                 api_settings = AlarmsApiSettingsModel.objects.last()
             else:
                 api_settings = AlarmsApiSettingsModel(
-                    last_alarms_update=datetime.fromtimestamp(0),
-                    last_history_update=datetime.fromtimestamp(0),
+                    last_alarms_update=datetime.fromtimestamp(0, timezone.get_current_timezone()),
+                    last_history_update=datetime.fromtimestamp(0, timezone.get_current_timezone()),
                     update_period=timedelta(seconds=5)
                 )
 
@@ -174,9 +174,9 @@ class AlarmHistoryQueryset(models.QuerySet):
                     if alarm.history.count() > 0:
                         last_update_time = alarm.history.latest('date')
                     else:
-                        last_update_time = datetime.fromtimestamp(0)
+                        last_update_time = datetime.fromtimestamp(0,timezone.get_current_timezone())
                     # retrieve new snapshots from the database
-                    snaps = alarm_ctx.db.get_context_snapshots(context_id=alarm_ctx.ID, dates=(last_update_time, datetime.now()))
+                    snaps = alarm_ctx.db.get_context_snapshots(context_id=alarm_ctx.ID, dates=(last_update_time, timezone.now()))
 
                     # iterate through new snapshots and create objects
                     for snapshot in snaps:
@@ -202,8 +202,6 @@ class AlarmHistoryQueryset(models.QuerySet):
             logger.warning('There is an operational error: %s \n'
                            'If it is before any migration it is normal for .updated() method '
                            'tries to use a table which is not yet created.' % str(oe))
-
-
 
         return self
 
