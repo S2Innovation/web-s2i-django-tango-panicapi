@@ -9,11 +9,11 @@ os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 setup(
     name='django-tango-panicapi',
-    version='0.1',
+    version='.8',
     packages=find_packages(),
     include_package_data=True,
     license='unspecified',  # example license
-    description='Django application to serve Tango Controls PANIC system alarm api throug http',
+    description='Django application to serve Tango Controls PANIC system alarm api through http',
     long_description=README,
     url='https://www.s2innovation.com/',
     author='Piotr Goryl',

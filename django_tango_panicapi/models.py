@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 from django.db import models
 from django.db import OperationalError
+from django.utils import timezone
 from panic import alarmapi
 from PyTangoArchiving import snap
 from datetime import datetime, timedelta
@@ -32,10 +33,20 @@ Alarm = alarmapi.Alarm
 alarms = alarmapi.api()
 
 
-class AlarmsSettings(models.Model):
-    last_alarms_update = models.DateTimeField(auto_now=True)
-    last_history_update = models.DateTimeField(auto_now=True)
-    update_period = models.DurationField()
+class AlarmsApiSettingsModel(models.Model):
+    """Model to keep settings for the application"""
+    last_alarms_update = models.DateTimeField(
+        default=datetime.fromtimestamp(0),
+        verbose_name='Last alarms update',
+    )
+    last_history_update = models.DateTimeField(
+        default=datetime.fromtimestamp(0),
+        verbose_name='Last history update',
+    )
+    update_period = models.DurationField(
+        default=timedelta(seconds=5),
+        verbose_name='Database update period',
+    )
 
 
 class AlarmQueryset(models.QuerySet):
@@ -46,6 +57,19 @@ class AlarmQueryset(models.QuerySet):
 
         # iterate through defined alarms and do update
         try:
+            if AlarmsApiSettingsModel.objects.count() > 0:
+                api_settings = AlarmsApiSettingsModel.objects.last()
+            else:
+                api_settings = AlarmsApiSettingsModel(
+                    last_alarms_update=datetime.fromtimestamp(0),
+                    last_history_update=datetime.fromtimestamp(0),
+                    update_period=timedelta(seconds=5)
+                )
+
+            # avoid too often updates
+            if timezone.now() - api_settings.last_alarms_update < api_settings.update_period:
+                return self
+
             for alarm_tag in alarms.keys():
                 # find object in a database
                 alarm, is_created = AlarmModel.objects.get_or_create(tag=alarm_tag)
@@ -70,10 +94,16 @@ class AlarmQueryset(models.QuerySet):
 
                 # save to database
                 alarm.save()
+
+            api_settings.last_alarms_update = timezone.now()
+            api_settings.save()
+
         except OperationalError as oe:
             logger.warning('There is an operational error: %s \n'
                            'If it is before any migration it is normal for .updated() method '
                            'tries to use a table which is not yet created.' % str(oe))
+
+
 
         return self
 
@@ -119,6 +149,20 @@ class AlarmHistoryQueryset(models.QuerySet):
             return self
 
         try:
+
+            if AlarmsApiSettingsModel.objects.count() > 0:
+                api_settings = AlarmsApiSettingsModel.objects.last()
+            else:
+                api_settings = AlarmsApiSettingsModel(
+                    last_alarms_update=datetime.fromtimestamp(0),
+                    last_history_update=datetime.fromtimestamp(0),
+                    update_period=timedelta(seconds=5)
+                )
+
+            # avoid too often updates
+            if timezone.now() - api_settings.last_history_update < api_settings.update_period:
+                return self
+
             # iterate through defined alarms and do update
             for alarm in AlarmModel.objects.all():
 
@@ -150,10 +194,16 @@ class AlarmHistoryQueryset(models.QuerySet):
 
                         # save to database
                         alarm.save()
+
+            api_settings.last_history_update = timezone.now()
+            api_settings.save()
+
         except OperationalError as oe:
             logger.warning('There is an operational error: %s \n'
                            'If it is before any migration it is normal for .updated() method '
                            'tries to use a table which is not yet created.' % str(oe))
+
+
 
         return self
 
