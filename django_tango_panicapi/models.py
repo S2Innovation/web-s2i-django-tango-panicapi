@@ -127,9 +127,12 @@ class AlarmHistoryQueryset(models.QuerySet):
 
                 if alarm_ctx is not None:
                     # check timestamp of the latest synchronized snapshot
-                    last_update_time = alarm.history.latest('date')
+                    if alarm.history.count() > 0:
+                        last_update_time = alarm.history.latest('date')
+                    else:
+                        last_update_time = datetime.fromtimestamp(0)
                     # retrieve new snapshots from the database
-                    snaps = alarm_ctx.db.get_context_snapshots(alarm_ctx.id, dates=(last_update_time, datetime.now()))
+                    snaps = alarm_ctx.db.get_context_snapshots(context_id=alarm_ctx.ID, dates=(last_update_time, datetime.now()))
 
                     # iterate through new snapshots and create objects
                     for snapshot in snaps:

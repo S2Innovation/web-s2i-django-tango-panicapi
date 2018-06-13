@@ -20,12 +20,26 @@ class AlarmSerializer(serializers.ModelSerializer):
             'activation_time'
         )
 
+class AlarmShortSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = AlarmModel
+        fields = (
+            'tag',
+            'severity',
+        )
+
+
 class AlarmHistorySerializer(serializers.ModelSerializer):
+
+    alarm = AlarmShortSerializer()
 
     class Meta:
         model = AlarmHistoryModel
         fields = (
             'id',
+            'alarm',
+            # 'alarm_tag',
             'date',
             'comment',
         )

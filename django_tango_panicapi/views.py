@@ -30,10 +30,15 @@ class AlarmViewset(viewsets.ReadOnlyModelViewSet):
 
 
 class AlarmHistoryViewset(viewsets.ReadOnlyModelViewSet):
-    queryset = AlarmHistoryModel.objects.updated().order_by('-data')
+
+    queryset = AlarmHistoryModel.objects.updated().order_by('-date')
+
     serializer_class = AlarmHistorySerializer
+
+
     filter_backends = (django_filters.rest_framework.DjangoFilterBackend,)
     filter_fields = {
-        'date': ['exact', 'range','date__gt', 'date__lt' ],
+        'date': ['exact', 'range','date__gt', 'date__lt', ],
         'comment': ['exact', 'icontains', 'contains', ],
+        'alarm__tag': ['exact', 'icontains', 'contains', 'startswith']
     }
