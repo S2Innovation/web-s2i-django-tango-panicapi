@@ -85,8 +85,8 @@ class AlarmQueryset(models.QuerySet):
                 )
 
             # avoid too often updates
-            # if timezone.now() - api_settings.last_alarms_update < api_settings.update_period:
-            #    return self
+            if timezone.now() - api_settings.last_alarms_update < api_settings.update_period:
+                return self
 
             for alarm_tag in alarms.keys():
                 # find object in a database
@@ -109,7 +109,7 @@ class AlarmQueryset(models.QuerySet):
                 alarm.is_disabled = panic_alarm.disabled
                 alarm.is_active = panic_alarm.is_active()
                 if panic_alarm.time != 0:
-                    alarm.activation_time = datetime.fromtimestamp(panic_alarm.time, timezone.get_current_timezone())
+                    alarm.activation_time = timezone.get_current_timezone().localize(datetime.fromtimestamp(panic_alarm.time))
                 else:
                     alarm.activation_time = None
 
@@ -173,8 +173,8 @@ class AlarmHistoryQueryset(models.QuerySet):
                 )
 
             # avoid too often updates
-            # if timezone.now() - api_settings.last_history_update < api_settings.update_period:
-            #   return self
+            if timezone.now() - api_settings.last_history_update < api_settings.update_period:
+              return self
 
             # iterate through defined alarms and do update
             for alarm in AlarmModel.objects.all():

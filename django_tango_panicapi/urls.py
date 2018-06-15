@@ -11,5 +11,6 @@ panicapi_router.register(r'history', views.AlarmHistoryViewset)
 
 
 urlpatterns = [
+    url(r'^sync', views.synch_db),
     url(r'^', include(panicapi_router.urls)),
 ]

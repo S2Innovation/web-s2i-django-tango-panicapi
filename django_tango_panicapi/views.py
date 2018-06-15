@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-from django.shortcuts import render
+from django.shortcuts import render, HttpResponse
 import django_filters.rest_framework
 from rest_framework import viewsets
 from rest_framework.pagination import PageNumberPagination
@@ -16,13 +16,19 @@ def index(request):
     pass
 
 
+def synch_db(request):
+    """synchronize database with alarms"""
+    AlarmModel.objects.updated()
+    AlarmHistoryModel.objects.updated()
+    return HttpResponse('ok', content_type='application/text')
+
 class AlarmsPaginator(PageNumberPagination):
     page_size = 50
     page_size_query_param = 'page_size'
     max_page_size = 1000000
 
 class AlarmViewset(viewsets.ReadOnlyModelViewSet):
-    queryset = AlarmModel.objects.updated()
+    queryset = AlarmModel.objects.all()
     serializer_class = AlarmSerializer
     pagination_class = AlarmsPaginator
     filter_backends = (django_filters.rest_framework.DjangoFilterBackend,)
@@ -39,7 +45,7 @@ class AlarmViewset(viewsets.ReadOnlyModelViewSet):
 
 class AlarmHistoryViewset(viewsets.ReadOnlyModelViewSet):
 
-    queryset = AlarmHistoryModel.objects.updated().order_by('-date')
+    queryset = AlarmHistoryModel.objects.all().order_by('-date')
 
     serializer_class = AlarmHistorySerializer
 
