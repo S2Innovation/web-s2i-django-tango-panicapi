@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 from django.db import models
 from django.db import OperationalError
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from panic import alarmapi
 from PyTangoArchiving import snap
 from datetime import datetime, timedelta
@@ -30,17 +31,34 @@ ALARM_STATES = [
 ]
 
 Alarm = alarmapi.Alarm
-alarms = alarmapi.api()
+alarms = None
+snap_api = None
+
+def prepare_api():
+    """Prepare api opbjects"""
+    global alarms
+    global snap_api
+
+    alarms = alarmapi.api()
+    # check if SNAP is available
+    try:
+        db = alarmapi._TANGO  # fandango.get_database()
+        assert list(db.get_device_exported_for_class('SnapManager'))
+        snap_api = snap.SnapAPI()
+    except Exception, e:
+        logging.warning('PyTangoArchiving.Snaps not available: '
+                        'History synchronization is disabld: \n %s \n' % e.message)
+        snap_api = None
 
 
 class AlarmsApiSettingsModel(models.Model):
     """Model to keep settings for the application"""
     last_alarms_update = models.DateTimeField(
-        default=datetime.fromtimestamp(0, timezone.get_current_timezone()),
+        default=datetime.fromtimestamp(0), #, timezone.get_current_timezone()),
         verbose_name='Last alarms update',
     )
     last_history_update = models.DateTimeField(
-        default=datetime.fromtimestamp(0,timezone.get_current_timezone()),
+        default=datetime.fromtimestamp(0), #timezone.get_current_timezone()),
         verbose_name='Last history update',
     )
     update_period = models.DurationField(
@@ -54,7 +72,7 @@ class AlarmQueryset(models.QuerySet):
 
     def updated(self):
         """Returns a queryset after database synchronization"""
-
+        prepare_api()
         # iterate through defined alarms and do update
         try:
             if AlarmsApiSettingsModel.objects.count() > 0:
@@ -67,8 +85,8 @@ class AlarmQueryset(models.QuerySet):
                 )
 
             # avoid too often updates
-            if timezone.now() - api_settings.last_alarms_update < api_settings.update_period:
-                return self
+            # if timezone.now() - api_settings.last_alarms_update < api_settings.update_period:
+            #    return self
 
             for alarm_tag in alarms.keys():
                 # find object in a database
@@ -131,15 +149,7 @@ class AlarmModel(models.Model):
     is_active = models.BooleanField(default=False, verbose_name="Active")
     activation_time = models.DateTimeField(blank=True, verbose_name="Activation time", null=True)
 
-# check if SNAP is available
-try:
-    db = alarmapi._TANGO #fandango.get_database()
-    assert list(db.get_device_exported_for_class('SnapManager'))
-    snap_api = snap.SnapAPI()
-except Exception, e:
-    logging.warning('PyTangoArchiving.Snaps not available: '
-                    'History synchronization is disabld: \n %s \n' % e.message)
-    snap_api = None
+
 
 
 class AlarmHistoryQueryset(models.QuerySet):
@@ -147,7 +157,7 @@ class AlarmHistoryQueryset(models.QuerySet):
 
     def updated(self):
         """Returns a queryset after database synchronization"""
-
+        prepare_api()
         if snap_api is None:
             return self
 
@@ -163,8 +173,8 @@ class AlarmHistoryQueryset(models.QuerySet):
                 )
 
             # avoid too often updates
-            if timezone.now() - api_settings.last_history_update < api_settings.update_period:
-                return self
+            # if timezone.now() - api_settings.last_history_update < api_settings.update_period:
+            #   return self
 
             # iterate through defined alarms and do update
             for alarm in AlarmModel.objects.all():
@@ -175,7 +185,7 @@ class AlarmHistoryQueryset(models.QuerySet):
                 if alarm_ctx is not None:
                     # check timestamp of the latest synchronized snapshot
                     if alarm.history.count() > 0:
-                        last_update_time = alarm.history.latest('date')
+                        last_update_time = alarm.history.latest('date').date
                     else:
                         last_update_time = datetime.fromtimestamp(0,timezone.get_current_timezone())
                     # retrieve new snapshots from the database
@@ -190,13 +200,13 @@ class AlarmHistoryQueryset(models.QuerySet):
                                                                                             comment=snapshot[2])
                         assert isinstance(alarm_history, AlarmHistoryModel)
 
-                        # set fields
-                        alarm_history.alarm = alarm
-                        alarm_history.date = snapshot[1]
-                        alarm_history.comment = snapshot[2]
-
-                        # save to database
-                        alarm.save()
+                        if is_created:
+                            # set fields
+                            alarm_history.alarm = alarm
+                            alarm_history.date = snapshot[1]
+                            alarm_history.comment = snapshot[2]
+                            # save to database
+                            alarm.save()
 
             api_settings.last_history_update = timezone.now()
             api_settings.save()
