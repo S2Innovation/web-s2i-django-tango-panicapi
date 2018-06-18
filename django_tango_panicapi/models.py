@@ -100,7 +100,14 @@ class AlarmQueryset(models.QuerySet):
                 assert isinstance(panic_alarm, Alarm)
                 alarm.tag = alarm_tag
                 alarm.severity = panic_alarm.get_priority()
-                alarm.state = panic_alarm.get_state()
+                alarm.is_disabled = panic_alarm.get_enabled(force=True)
+                panic_alarm.get_acknowledged(force=True)
+                panic_alarm.set_active(panic_alarm.get_time(True))
+                if panic_alarm.time != 0:
+                    alarm.activation_time = timezone.get_current_timezone().localize(datetime.fromtimestamp(panic_alarm.time))
+                else:
+                    alarm.activation_time = None
+                alarm.state = panic_alarm.get_state(force=True)
                 alarm.description = panic_alarm.description
                 alarm.formula = panic_alarm.get_condition()
                 alarm.receivers = panic_alarm.get_annunciators()
@@ -108,12 +115,9 @@ class AlarmQueryset(models.QuerySet):
                     alarm.wiki_link = panic_alarm.get_wiki_link()
                 except AttributeError:
                     alarm.wiki_link = ''
-                alarm.is_disabled = panic_alarm.disabled
+
                 alarm.is_active = panic_alarm.is_active()
-                if panic_alarm.time != 0:
-                    alarm.activation_time = timezone.get_current_timezone().localize(datetime.fromtimestamp(panic_alarm.time))
-                else:
-                    alarm.activation_time = None
+
 
                 # save to database
                 alarm.save()
