@@ -38,17 +38,18 @@ def prepare_api():
     """Prepare api opbjects"""
     global alarms
     global snap_api
-
-    alarms = alarmapi.api()
+    if alarms is None:
+        alarms = alarmapi.api()
     # check if SNAP is available
-    try:
-        db = alarmapi._TANGO  # fandango.get_database()
-        assert list(db.get_device_exported_for_class('SnapManager'))
-        snap_api = snap.SnapAPI()
-    except Exception, e:
-        logging.warning('PyTangoArchiving.Snaps not available: '
-                        'History synchronization is disabld: \n %s \n' % e.message)
-        snap_api = None
+    if snap_api is None:
+        try:
+            db = alarmapi._TANGO  # fandango.get_database()
+            assert list(db.get_device_exported_for_class('SnapManager'))
+            snap_api = snap.SnapAPI()
+        except Exception, e:
+            logging.warning('PyTangoArchiving.Snaps not available: '
+                            'History synchronization is disabld: \n %s \n' % e.message)
+            snap_api = None
 
 
 class AlarmsApiSettingsModel(models.Model):
@@ -73,6 +74,7 @@ class AlarmQueryset(models.QuerySet):
     def updated(self):
         """Returns a queryset after database synchronization"""
         prepare_api()
+        global alarms
         # iterate through defined alarms and do update
         try:
             if AlarmsApiSettingsModel.objects.count() > 0:
@@ -158,6 +160,8 @@ class AlarmHistoryQueryset(models.QuerySet):
     def updated(self):
         """Returns a queryset after database synchronization"""
         prepare_api()
+        global snap_api
+        global alarms
         if snap_api is None:
             return self
 
@@ -176,40 +180,44 @@ class AlarmHistoryQueryset(models.QuerySet):
             if timezone.now() - api_settings.last_history_update < api_settings.update_period:
               return self
 
-            # iterate through defined alarms and do update
-            for alarm in AlarmModel.objects.all():
+            try:
+                # iterate through defined alarms and do update
+                for alarm in AlarmModel.objects.all():
 
-                # find SNAP context for alarm
-                alarm_ctx = snap_api.get_context(name=alarm.tag)
+                    # find SNAP context for alarm
+                    alarm_ctx = snap_api.get_context(name=alarm.tag)
 
-                if alarm_ctx is not None:
-                    # check timestamp of the latest synchronized snapshot
-                    if alarm.history.count() > 0:
-                        last_update_time = alarm.history.latest('date').date
-                    else:
-                        last_update_time = datetime.fromtimestamp(0,timezone.get_current_timezone())
-                    # retrieve new snapshots from the database
-                    snaps = alarm_ctx.db.get_context_snapshots(context_id=alarm_ctx.ID, dates=(last_update_time, timezone.now()))
+                    if alarm_ctx is not None:
+                        # check timestamp of the latest synchronized snapshot
+                        if alarm.history.count() > 0:
+                            last_update_time = alarm.history.latest('date').date
+                        else:
+                            last_update_time = datetime.fromtimestamp(0,timezone.get_current_timezone())
+                        # retrieve new snapshots from the database
+                        snaps = alarm_ctx.db.get_context_snapshots(context_id=alarm_ctx.ID, dates=(last_update_time-timedelta(days=1), timezone.now()+timedelta(days=1)))
 
-                    # iterate through new snapshots and create objects
-                    for snapshot in snaps:
+                        # iterate through new snapshots and create objects
+                        for snapshot in snaps:
 
-                        # find object in a database
-                        alarm_history, is_created = AlarmHistoryModel.objects.get_or_create(alarm=alarm,
-                                                                                            date=snapshot[1],
-                                                                                            comment=snapshot[2])
-                        assert isinstance(alarm_history, AlarmHistoryModel)
+                            # find object in a database
+                            alarm_history, is_created = AlarmHistoryModel.objects.get_or_create(alarm=alarm,
+                                                                                                date=snapshot[1],
+                                                                                                comment=snapshot[2])
+                            assert isinstance(alarm_history, AlarmHistoryModel)
 
-                        if is_created:
-                            # set fields
-                            alarm_history.alarm = alarm
-                            alarm_history.date = snapshot[1]
-                            alarm_history.comment = snapshot[2]
-                            # save to database
-                            alarm.save()
+                            if is_created:
+                                # set fields
+                                alarm_history.alarm = alarm
+                                alarm_history.date = snapshot[1]
+                                alarm_history.comment = snapshot[2]
+                                # save to database
+                                alarm.save()
+                api_settings.last_history_update = timezone.now()
+                api_settings.save()
+            except:
+                # if there is an issue here it is usally due to snap db...
+                snap_api = None
 
-            api_settings.last_history_update = timezone.now()
-            api_settings.save()
 
         except OperationalError as oe:
             logger.warning('There is an operational error: %s \n'
