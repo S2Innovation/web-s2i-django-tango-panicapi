@@ -197,7 +197,7 @@ class AlarmHistoryQueryset(models.QuerySet):
                             last_update_time = datetime.fromtimestamp(0,timezone.get_current_timezone())
                         try:
                             # retrieve new snapshots from the database
-                            snaps = alarm_ctx.db.get_context_snapshots(context_id=alarm_ctx.ID, latest=100) # =(last_update_time-timedelta(days=1), timezone.now()+timedelta(days=1)))
+                            snaps = alarm_ctx.db.get_context_snapshots(context_id=alarm_ctx.ID, limit=100) # =(last_update_time-timedelta(days=1), timezone.now()+timedelta(days=1)))
 
                             # iterate through new snapshots and create objects
                             for snapshot in snaps:
