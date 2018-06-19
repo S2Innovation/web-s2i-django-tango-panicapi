@@ -116,9 +116,7 @@ class AlarmQueryset(models.QuerySet):
                 except AttributeError:
                     alarm.wiki_link = ''
 
-                alarm.is_active = panic_alarm.is_active()
-
-
+                alarm.is_active = panic_alarm.is_active() > 0
                 # save to database
                 alarm.save()
 
