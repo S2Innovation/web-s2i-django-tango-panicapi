@@ -5,11 +5,14 @@ from django.shortcuts import render, HttpResponse
 import django_filters.rest_framework
 from rest_framework import viewsets
 from rest_framework.pagination import PageNumberPagination
+from threading import Lock
 
 from models import AlarmModel, AlarmHistoryModel
 from serializers import AlarmSerializer, AlarmHistorySerializer
 
 # Create your views here.
+
+sync_lock = Lock()
 
 
 def index(request):
@@ -18,8 +21,13 @@ def index(request):
 
 def synch_db(request):
     """synchronize database with alarms"""
-    AlarmModel.objects.updated()
-    AlarmHistoryModel.objects.updated()
+    global sync_lock
+    if sync_lock.acquire(False):
+        try:
+            AlarmModel.objects.updated()
+            AlarmHistoryModel.objects.updated()
+        finally:
+            sync_lock.release()
     return HttpResponse('ok', content_type='application/text')
 
 class AlarmsPaginator(PageNumberPagination):

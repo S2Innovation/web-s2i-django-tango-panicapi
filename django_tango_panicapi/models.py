@@ -77,7 +77,7 @@ class AlarmQueryset(models.QuerySet):
 
     def updated(self):
         """Returns a queryset after database synchronization"""
-        prepare_api()
+
         global alarms
         global api_loc
         # iterate through defined alarms and do update
@@ -94,6 +94,11 @@ class AlarmQueryset(models.QuerySet):
             # avoid too often updates
             if timezone.now() - api_settings.last_alarms_update < api_settings.update_period:
                 return self
+
+            api_settings.last_alarms_update = timezone.now()
+            api_settings.save()
+
+            prepare_api()
 
             for alarm_tag in alarms.keys():
                 # find object in a database
@@ -126,15 +131,10 @@ class AlarmQueryset(models.QuerySet):
                 # save to database
                 alarm.save()
 
-            api_settings.last_alarms_update = timezone.now()
-            api_settings.save()
-
         except OperationalError as oe:
             logger.warning('There is an operational error: %s \n'
                            'If it is before any migration it is normal for .updated() method '
                            'tries to use a table which is not yet created.' % str(oe))
-
-
 
         return self
 
@@ -167,12 +167,10 @@ class AlarmHistoryQueryset(models.QuerySet):
 
     def updated(self):
         """Returns a queryset after database synchronization"""
-        prepare_api()
+
         global snap_api
         global alarms
         global api_loc
-        if snap_api is None:
-            return self
 
         try:
 
@@ -188,6 +186,14 @@ class AlarmHistoryQueryset(models.QuerySet):
             # avoid too often updates
             if timezone.now() - api_settings.last_history_update < api_settings.update_period:
               return self
+
+            api_settings.last_history_update = timezone.now()
+            api_settings.save()
+
+            prepare_api()
+            with api_loc:
+                if snap_api is None:
+                    return self
 
             try:
                 # iterate through defined alarms and do update
@@ -230,8 +236,7 @@ class AlarmHistoryQueryset(models.QuerySet):
                         except Exception as ce:
                             logger.warning('There is an errot in reading context history: %s \n' % str(ce))
                             snap_api = None
-                api_settings.last_history_update = timezone.now()
-                api_settings.save()
+
             except:
                 # if there is an issue here it is usally due to snap db...
                 snap_api = None
